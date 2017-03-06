@@ -76,36 +76,6 @@ namespace MathFun
                 rslt[i] = x[i] >> imm8;
             return new Vector<int>(rslt);
         }
-                
-        /// <summary>
-        /// Bitwise XOR
-        /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <returns></returns>
-        // TODO: works for any Vector<T>
-        public static Vector<int> _mm256_xor_si256(Vector<int> x, Vector<int> y)
-        {
-            var rslt = new int[Vector<int>.Count];
-            for (int i = 0; i < rslt.Length; ++i)
-                rslt[i] = x[i] ^ y[i];
-            return new Vector<int>(rslt);
-        }
-
-        /// <summary>
-        /// Compute the bitwise NOT of packed single-precision (32-bit) 
-        /// floating-point elements in x and then AND with y.
-        /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <returns></returns>
-        public static Vector<int> _mm256_andnot_si256(Vector<int> x, Vector<int> y)
-        {
-            var rslt = new int[Vector<int>.Count];
-            for (int i = 0; i < rslt.Length; ++i)
-                rslt[i] = (~x[i]) & y[i];
-            return new Vector<int>(rslt);
-        }
 
     }
 
@@ -170,8 +140,7 @@ namespace MathFun
 
             var z = Vector.Multiply(x, x);
 
-            var y = _ps256_cephes_log_p0;
-            y = Vector.Multiply(y, x);
+            var y = Vector.Multiply(x, _ps256_cephes_log_p0);
             y = Vector.Add(y, _ps256_cephes_log_p1);
             y = Vector.Multiply(y, x);
             y = Vector.Add(y, _ps256_cephes_log_p2);
@@ -251,7 +220,7 @@ namespace MathFun
 
             //var swap_sign_bit = Vector.AsVectorSingle(imm0);
             //var poly_mask = Vector.AsVectorSingle(imm2);
-            sign_bit = Vector.AsVectorSingle(AVXIntrinsics._mm256_xor_si256(Vector.AsVectorInt32(sign_bit), imm0)); // swap_sign_bit);
+            sign_bit = Vector.AsVectorSingle(Vector.Xor(Vector.AsVectorInt32(sign_bit), imm0)); // swap_sign_bit);
 
             /* The magic pass: "Extended precision modular arithmetic" 
                x = ((x - y * DP1) - y * DP2) - y * DP3; */
@@ -298,7 +267,7 @@ namespace MathFun
             //y = Vector.Add(y, y2);
 
             /* update the sign */
-            y = Vector.AsVectorSingle(AVXIntrinsics._mm256_xor_si256(Vector.AsVectorInt32(y), Vector.AsVectorInt32(sign_bit)));
+            y = Vector.AsVectorSingle(Vector.Xor(Vector.AsVectorInt32(y), Vector.AsVectorInt32(sign_bit)));
 
             return y;
         }
@@ -320,7 +289,8 @@ namespace MathFun
             imm2 = Vector.Subtract(imm2, _pi32_256_2);
 
             /* get the swap sign flag */
-            var imm0 = AVXIntrinsics._mm256_andnot_si256(imm2, _pi32_256_4);
+            /// NOTE!! Vector.AndNot has arguments flipped around compared to AVX intrinsic _mm256_andnot_ps !!!!
+            var imm0 = Vector.AndNot(_pi32_256_4, imm2);
             imm0 = AVXIntrinsics._mm256_slli_epi32(imm0, 29);
             /* get the polynom selection mask 
                there is one polynom for 0 <= x <= Pi/4
@@ -375,7 +345,7 @@ namespace MathFun
             y = Vector.ConditionalSelect(imm2, y2, y);
 
             /* update the sign */
-            y = Vector.AsVectorSingle(AVXIntrinsics._mm256_xor_si256(Vector.AsVectorInt32(y), imm0)); // Vector.AsVectorInt32(sign_bit)
+            y = Vector.AsVectorSingle(Vector.Xor(Vector.AsVectorInt32(y), imm0)); // Vector.AsVectorInt32(sign_bit)
 
             return y;
         }
@@ -449,8 +419,6 @@ namespace MathFun
 
     public class Program
     {
-
-
         public static void Main(string[] args)
         {
             var len = Vector<float>.Count;
